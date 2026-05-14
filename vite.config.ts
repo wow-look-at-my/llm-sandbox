@@ -130,6 +130,17 @@ export default defineConfig({
     },
     tailwindcss(),
     solidPlugin(),
+    {
+      name: "opencode-sandbox:spa-fallback",
+      closeBundle() {
+        const distDir = fileURLToPath(new URL("./dist", import.meta.url))
+        const indexPath = path.join(distDir, "index.html")
+        const fallbackPath = path.join(distDir, "404.html")
+        if (fs.existsSync(indexPath)) {
+          fs.copyFileSync(indexPath, fallbackPath)
+        }
+      },
+    },
   ],
   server: {
     host: "0.0.0.0",
