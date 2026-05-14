@@ -3,15 +3,8 @@ name: Build & Deploy
 on:
   push:
     branches: [master]
-
-permissions:
-  contents: read
-  pages: write
-  id-token: write
-
-concurrency:
-  group: pages
-  cancel-in-progress: false
+  pull_request:
+    types: [opened, reopened, synchronize]
 
 jobs:
   build:
@@ -28,16 +21,14 @@ jobs:
 
       - run: npm run build
 
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
-          path: dist
+          name: build
+          path: ./dist/
 
   deploy:
     needs: build
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - id: deployment
-        uses: actions/deploy-pages@v4
+    uses: PazerOP/pr-preview-action/.github/workflows/preview.yml@v1
+    with:
+      artifact-name: build
+    secrets: inherit
