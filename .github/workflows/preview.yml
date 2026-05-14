@@ -2,8 +2,7 @@ name: Build & Deploy
 
 on:
   push:
-  pull_request:
-    types: [opened, reopened, synchronize, closed]
+    branches: [master]
 
 permissions:
   contents: read
@@ -11,15 +10,12 @@ permissions:
   id-token: write
 
 concurrency:
-  group: pages-${{ github.ref }}
-  cancel-in-progress: true
+  group: pages
+  cancel-in-progress: false
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    if: >-
-      github.event_name == 'push' ||
-      (github.event_name == 'pull_request' && github.event.action != 'closed')
     steps:
       - uses: actions/checkout@v4
 
@@ -33,19 +29,11 @@ jobs:
       - run: npm run build
 
       - uses: actions/upload-pages-artifact@v3
-        if: github.ref == 'refs/heads/master' && github.event_name == 'push'
         with:
           path: dist
 
-      - uses: actions/upload-artifact@v4
-        if: github.event_name == 'pull_request'
-        with:
-          name: build
-          path: ./dist/
-
   deploy:
     needs: build
-    if: github.ref == 'refs/heads/master' && github.event_name == 'push'
     runs-on: ubuntu-latest
     environment:
       name: github-pages
