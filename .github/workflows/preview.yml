@@ -28,7 +28,7 @@ jobs:
 
   deploy:
     needs: build
-    uses: PazerOP/pr-preview-action/.github/workflows/preview.yml@v1
+    uses: PazerOP/pr-preview-action/.github/workflows/preview.yml@a1f11d1efb5096634a46afe601f73ce01720dc6b
     with:
       artifact-name: build
     secrets: inherit
