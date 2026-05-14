@@ -142,6 +142,7 @@ export default defineConfig({
       },
     },
   ],
+  base: process.env.GITHUB_ACTIONS ? "/llm-sandbox/" : "/",
   server: {
     host: "0.0.0.0",
     port: 3000,
