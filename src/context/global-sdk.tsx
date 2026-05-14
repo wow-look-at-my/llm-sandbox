@@ -3,6 +3,8 @@ import { createSimpleContext } from "@opencode-ai/ui/context"
 import { createGlobalEmitter } from "@solid-primitives/event-bus"
 import { onCleanup } from "solid-js"
 import { useServer } from "./server"
+import { sendMessage, abortCurrentSession, onSandboxEvent } from "@/lib/sandbox-agent"
+import * as sandboxDb from "@/lib/db"
 
 export const { use: useGlobalSDK, provider: GlobalSDKProvider } = createSimpleContext({
   name: "GlobalSDK",
@@ -12,6 +14,11 @@ export const { use: useGlobalSDK, provider: GlobalSDKProvider } = createSimpleCo
     const emitter = createGlobalEmitter<{
       [key: string]: Event
     }>()
+
+    const unsub = onSandboxEvent((event: unknown) => {
+      emitter.emit("sandbox", event as Event)
+    })
+    onCleanup(unsub)
 
     const noop = async () => ({ data: undefined })
     const noopList = async () => ({ data: [] })
@@ -25,9 +32,74 @@ export const { use: useGlobalSDK, provider: GlobalSDKProvider } = createSimpleCo
               {},
               {
                 get(_t, method) {
-                  if (method === "list") return noopList
-                  if (method === "create") return async () => ({ data: { id: crypto.randomUUID(), title: "New Session" } })
-                  if (method === "messages") return noopList
+                  if (method === "list")
+                    return async () => {
+                      const sessions = await sandboxDb.listSessions()
+                      return {
+                        data: sessions.map((s) => ({
+                          id: s.id,
+                          title: s.title,
+                          parentID: s.parentID,
+                          time: { created: s.createdAt, updated: s.updatedAt },
+                        })),
+                      }
+                    }
+                  if (method === "create")
+                    return async (params?: { title?: string }) => {
+                      const session = await sandboxDb.createSession(params?.title)
+                      return {
+                        data: {
+                          id: session.id,
+                          title: session.title,
+                          time: { created: session.createdAt, updated: session.updatedAt },
+                        },
+                      }
+                    }
+                  if (method === "prompt" || method === "promptAsync")
+                    return async (params: { sessionID: string; parts?: any[] }) => {
+                      const textParts = (params.parts ?? []).filter((p: any) => p.type === "text")
+                      const content = textParts.map((p: any) => p.text || "").join("\n")
+                      if (content) {
+                        sendMessage(params.sessionID, content).catch((err) =>
+                          console.error("[sandbox] agent error:", err),
+                        )
+                      }
+                      return { data: { id: crypto.randomUUID() } }
+                    }
+                  if (method === "abort")
+                    return async () => {
+                      abortCurrentSession()
+                      return { data: true }
+                    }
+                  if (method === "messages")
+                    return async (params: { sessionID: string }) => {
+                      const msgs = await sandboxDb.getMessages(params.sessionID)
+                      return { data: msgs }
+                    }
+                  if (method === "delete")
+                    return async (params: { sessionID: string }) => {
+                      await sandboxDb.deleteSession(params.sessionID)
+                      return { data: true }
+                    }
+                  if (method === "update")
+                    return async (params: { sessionID: string; title?: string }) => {
+                      const updated = await sandboxDb.updateSession(params.sessionID, {
+                        title: params.title,
+                      })
+                      return { data: updated }
+                    }
+                  if (method === "get")
+                    return async (params: { sessionID: string }) => {
+                      const session = await sandboxDb.getSession(params.sessionID)
+                      if (!session) return { data: undefined }
+                      return {
+                        data: {
+                          id: session.id,
+                          title: session.title,
+                          time: { created: session.createdAt, updated: session.updatedAt },
+                        },
+                      }
+                    }
                   if (method === "diff") return noopList
                   if (method === "todo") return noopList
                   if (method === "children") return noopList

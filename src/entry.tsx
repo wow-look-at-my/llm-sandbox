@@ -4,6 +4,7 @@ import { render } from "solid-js/web"
 import { AppBaseProviders, AppInterface } from "@/app"
 import { type Platform, PlatformProvider } from "@/context/platform"
 import { ServerConnection } from "./context/server"
+import { SandboxSettingsGate } from "@/components/sandbox-settings"
 
 const platform: Platform = {
   platform: "web",
@@ -30,11 +31,13 @@ if (root instanceof HTMLElement) {
     () => (
       <PlatformProvider value={platform}>
         <AppBaseProviders>
-          <AppInterface
-            defaultServer={ServerConnection.Key.make("http://localhost:0")}
-            servers={[server]}
-            disableHealthCheck
-          />
+          <SandboxSettingsGate>
+            <AppInterface
+              defaultServer={ServerConnection.Key.make("http://localhost:0")}
+              servers={[server]}
+              disableHealthCheck
+            />
+          </SandboxSettingsGate>
         </AppBaseProviders>
       </PlatformProvider>
     ),
