@@ -1,4 +1,4 @@
-@import "@opencode-ai/ui/styles/tailwind";
+@import "./ui/styles/tailwind/index.css";
 
 @font-face {
   font-family: "JetBrainsMono Nerd Font Mono";
