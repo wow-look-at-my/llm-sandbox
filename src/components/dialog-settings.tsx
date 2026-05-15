@@ -9,7 +9,6 @@ import { SettingsGeneral } from "./settings-general"
 import { SettingsKeybinds } from "./settings-keybinds"
 import { SettingsProviders } from "./settings-providers"
 import { SettingsModels } from "./settings-models"
-import { SettingsSandbox } from "./settings-sandbox"
 
 export const DialogSettings: Component = () => {
   const language = useLanguage()
@@ -17,7 +16,7 @@ export const DialogSettings: Component = () => {
 
   return (
     <Dialog size="x-large" transition>
-      <Tabs orientation="vertical" variant="settings" defaultValue={isConfigured() ? "general" : "api"} class="h-full settings-dialog">
+      <Tabs orientation="vertical" variant="settings" defaultValue={isConfigured() ? "general" : "providers"} class="h-full settings-dialog">
         <Tabs.List>
           <div class="flex flex-col justify-between h-full w-full">
             <div class="flex flex-col gap-3 w-full pt-3">
@@ -39,10 +38,6 @@ export const DialogSettings: Component = () => {
                 <div class="flex flex-col gap-1.5">
                   <Tabs.SectionTitle>{language.t("settings.section.server")}</Tabs.SectionTitle>
                   <div class="flex flex-col gap-1.5 w-full">
-                    <Tabs.Trigger value="api">
-                      <Icon name="server" />
-                      API
-                    </Tabs.Trigger>
                     <Tabs.Trigger value="providers">
                       <Icon name="providers" />
                       {language.t("settings.providers.title")}
@@ -66,9 +61,6 @@ export const DialogSettings: Component = () => {
         </Tabs.Content>
         <Tabs.Content value="shortcuts" class="no-scrollbar">
           <SettingsKeybinds />
-        </Tabs.Content>
-        <Tabs.Content value="api" class="no-scrollbar">
-          <SettingsSandbox />
         </Tabs.Content>
         <Tabs.Content value="providers" class="no-scrollbar">
           <SettingsProviders />
