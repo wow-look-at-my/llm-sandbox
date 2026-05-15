@@ -2,24 +2,20 @@ name: Build & Deploy
 
 on:
   push:
+    branches: [master]
   pull_request:
-    types: [opened, reopened, synchronize, closed]
+    types: [opened, reopened, synchronize]
 
 permissions:
-  contents: read
+  contents: write
   pages: write
   id-token: write
-
-concurrency:
-  group: pages-${{ github.ref }}
-  cancel-in-progress: true
+  pull-requests: write
+  statuses: write
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    if: >-
-      github.event_name == 'push' ||
-      (github.event_name == 'pull_request' && github.event.action != 'closed')
     steps:
       - uses: actions/checkout@v4
 
@@ -32,24 +28,14 @@ jobs:
 
       - run: npm run build
 
-      - uses: actions/upload-pages-artifact@v3
-        if: github.ref == 'refs/heads/master' && github.event_name == 'push'
-        with:
-          path: dist
-
       - uses: actions/upload-artifact@v4
-        if: github.event_name == 'pull_request'
         with:
           name: build
           path: ./dist/
 
   deploy:
     needs: build
-    if: github.ref == 'refs/heads/master' && github.event_name == 'push'
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - id: deployment
-        uses: actions/deploy-pages@v4
+    uses: PazerOP/pr-preview-action/.github/workflows/preview.yml@a1f11d1efb5096634a46afe601f73ce01720dc6b
+    with:
+      artifact-name: build
+    secrets: inherit
