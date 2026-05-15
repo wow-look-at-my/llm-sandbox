@@ -63,6 +63,7 @@ import { ConstrainDragXAxis, getDraggableId } from "@/utils/solid-dnd"
 import { DebugBar } from "@/components/debug-bar"
 import { Titlebar } from "@/components/titlebar"
 import { useServer } from "@/context/server"
+import { isConfigured as isSandboxConfigured } from "@/lib/sandbox-settings"
 import { useLanguage, type Locale } from "@/context/language"
 import { pathKey } from "@/utils/path-key"
 import {
@@ -1240,6 +1241,10 @@ export default function Layout(props: ParentProps) {
       dialog.show(() => <x.DialogSettings />)
     })
   }
+
+  onMount(() => {
+    if (!isSandboxConfigured()) openSettings()
+  })
 
   function projectRoot(directory: string) {
     const key = pathKey(directory)
