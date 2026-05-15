@@ -17,17 +17,17 @@ export interface SandboxMethodClassification {
 export const SANDBOX_SDK_METHODS: SandboxMethodClassification[] = [
   { method: "app.agents", support: "stubbed-empty", behavior: "Returns the browser sandbox default agent." },
   { method: "app.skills", support: "stubbed-empty", behavior: "Returns an empty skill list." },
-  { method: "auth.remove", support: "unsupported", behavior: "Returns success after showing that provider auth is unavailable in the browser sandbox." },
-  { method: "auth.set", support: "unsupported", behavior: "Returns success after showing that provider auth is unavailable in the browser sandbox." },
+  { method: "auth.remove", support: "supported", behavior: "Removes browser-local provider credentials from localStorage." },
+  { method: "auth.set", support: "supported", behavior: "Persists browser-local provider credentials to localStorage." },
   { method: "command.list", support: "stubbed-empty", behavior: "Returns an empty command list." },
-  { method: "config.get", support: "stubbed-empty", behavior: "Returns an empty configuration object." },
-  { method: "config.providers", support: "stubbed-empty", behavior: "Returns no configured providers." },
+  { method: "config.get", support: "supported", behavior: "Reads browser-local provider configuration from localStorage." },
+  { method: "config.providers", support: "supported", behavior: "Builds provider metadata from browser-local provider configuration." },
   { method: "file.list", support: "supported", behavior: "Lists OPFS directory entries as SDK FileNode-like records." },
   { method: "file.read", support: "supported", behavior: "Reads file contents from OPFS." },
   { method: "file.status", support: "stubbed-empty", behavior: "Returns no VCS file status entries." },
   { method: "find.files", support: "supported", behavior: "Finds OPFS files and directories by name, and text matches when no type filter is provided." },
-  { method: "global.config.get", support: "stubbed-empty", behavior: "Returns an empty global configuration object." },
-  { method: "global.config.update", support: "unsupported", behavior: "Returns success after showing that server-side config persistence is unavailable." },
+  { method: "global.config.get", support: "supported", behavior: "Reads browser-local global configuration from localStorage." },
+  { method: "global.config.update", support: "supported", behavior: "Persists browser-local global configuration to localStorage." },
   { method: "global.dispose", support: "stubbed-empty", behavior: "No-op success because there is no daemon connection to dispose." },
   { method: "global.event", support: "stubbed-empty", behavior: "Returns an empty event stream; live agent events come from sandbox-agent instead." },
   { method: "global.health", support: "stubbed-empty", behavior: "Returns an ok health check for the in-browser compatibility layer." },
@@ -43,8 +43,8 @@ export const SANDBOX_SDK_METHODS: SandboxMethodClassification[] = [
   { method: "project.initGit", support: "unsupported", behavior: "Returns false after showing that Git initialization is unavailable." },
   { method: "project.list", support: "supported", behavior: "Returns the singleton browser Sandbox project." },
   { method: "project.update", support: "unsupported", behavior: "Returns the Sandbox project after showing that project editing is unavailable." },
-  { method: "provider.auth", support: "unsupported", behavior: "Returns an empty auth response after showing that provider auth is unavailable." },
-  { method: "provider.list", support: "stubbed-empty", behavior: "Returns no server-managed providers." },
+  { method: "provider.auth", support: "supported", behavior: "Returns API-key auth metadata for browser-local configured providers." },
+  { method: "provider.list", support: "supported", behavior: "Builds provider metadata from browser-local provider configuration." },
   { method: "provider.oauth.authorize", support: "unsupported", behavior: "Returns a typed OAuth unavailable result after showing a limitation." },
   { method: "provider.oauth.callback", support: "unsupported", behavior: "Returns a typed OAuth unavailable result after showing a limitation." },
   { method: "pty.connectToken", support: "unsupported", behavior: "Returns HTTP 405-like response after showing that web terminals are unavailable." },
@@ -108,6 +108,8 @@ const SANDBOX_PROJECT = {
   time: SANDBOX_PROJECT_TIME,
 }
 const SANDBOX_PATH = { cwd: "/", root: "/", directory: "/", home: "/" }
+const CONFIG_KEY = "opencode-global-config"
+const AUTH_KEY = "opencode-auth"
 
 function ok<T>(data: T): SdkResponse<T> {
   return { data, response: { status: 200 } }
@@ -134,6 +136,80 @@ function unsupported<T>(method: string, data: T, description: string): Promise<S
 
 function messageID() {
   return { id: crypto.randomUUID() }
+}
+
+function loadStoredRecord(key: string): Record<string, any> {
+  if (typeof localStorage === "undefined") return {}
+  try {
+    return JSON.parse(localStorage.getItem(key) || "{}")
+  } catch {
+    return {}
+  }
+}
+
+function saveStoredRecord(key: string, value: Record<string, any>) {
+  if (typeof localStorage === "undefined") return
+  localStorage.setItem(key, JSON.stringify(value))
+}
+
+function loadConfig(): Record<string, any> {
+  return loadStoredRecord(CONFIG_KEY)
+}
+
+function saveConfig(config: Record<string, any>) {
+  saveStoredRecord(CONFIG_KEY, config)
+}
+
+function loadAuth(): Record<string, any> {
+  return loadStoredRecord(AUTH_KEY)
+}
+
+function saveAuth(auth: Record<string, any>) {
+  saveStoredRecord(AUTH_KEY, auth)
+}
+
+function buildProviderList(config: Record<string, any>) {
+  const providerConfigs: Record<string, any> = config.provider ?? {}
+  const auth = loadAuth()
+  const disabledSet = new Set<string>(config.disabled_providers ?? [])
+
+  const all = Object.entries(providerConfigs)
+    .filter(([id]) => !disabledSet.has(id))
+    .map(([id, cfg]: [string, any]) => ({
+      id,
+      name: cfg.name || id,
+      source: "custom" as const,
+      env: cfg.env ? [cfg.env] : ([] as string[]),
+      key: auth[id]?.key ? `${id.toUpperCase()}_API_KEY` : undefined,
+      options: cfg.options ?? {},
+      models: Object.fromEntries(
+        Object.entries((cfg.models ?? {}) as Record<string, any>).map(([modelId, modelCfg]: [string, any]) => [
+          modelId,
+          {
+            id: modelId,
+            providerID: id,
+            name: modelCfg.name || modelId,
+            api: {
+              id: modelId,
+              url: cfg.options?.baseURL ?? "",
+              npm: cfg.npm ?? "@ai-sdk/openai-compatible",
+            },
+            capabilities: {
+              temperature: true,
+              reasoning: false,
+              attachment: false,
+              toolcall: true,
+              input: { text: true, audio: false, image: false, video: false, pdf: false },
+              output: { text: true, audio: false, image: false, streaming: true },
+            },
+          },
+        ]),
+      ),
+    }))
+
+  const connected = Object.keys(auth).filter((id) => !disabledSet.has(id) && providerConfigs[id])
+
+  return { all, connected, default: config.default ?? {} }
 }
 
 type SandboxDbSession = {
@@ -165,15 +241,30 @@ export function createSandboxClient(_options?: { emitter?: SandboxEventEmitter }
       skills: async () => ok([]),
     },
     auth: {
-      remove: async () => unsupported("auth.remove", true, "Provider credentials are managed by the server app and are not stored in this browser sandbox."),
-      set: async () => unsupported("auth.set", true, "Provider credentials are managed by the server app and are not stored in this browser sandbox."),
+      remove: async (params: { providerID: string }) => {
+        const auth = loadAuth()
+        delete auth[params.providerID]
+        saveAuth(auth)
+        return ok(true)
+      },
+      set: async (params: { providerID: string; auth?: any }) => {
+        if (params.auth) {
+          const auth = loadAuth()
+          auth[params.providerID] = params.auth
+          saveAuth(auth)
+        }
+        return ok(true)
+      },
     },
     command: {
       list: async () => ok([]),
     },
     config: {
-      get: async () => ok({}),
-      providers: async () => ok({ providers: [], default: {} }),
+      get: async () => ok(loadConfig()),
+      providers: async () => {
+        const providers = buildProviderList(loadConfig())
+        return ok({ providers: providers.all, default: providers.default })
+      },
     },
     file: {
       list: opfsSdk.file.list,
@@ -188,8 +279,17 @@ export function createSandboxClient(_options?: { emitter?: SandboxEventEmitter }
       event: emptyStream,
       dispose: async () => ok(true),
       config: {
-        get: async () => ok({}),
-        update: async () => unsupported("global.config.update", true, "Server configuration files cannot be written from the browser sandbox."),
+        get: async () => ok(loadConfig()),
+        update: async (params?: { config?: any }) => {
+          if (!params?.config) return ok(loadConfig())
+          const existing = loadConfig()
+          const merged = { ...existing, ...params.config }
+          if (existing.provider && params.config.provider) {
+            merged.provider = { ...existing.provider, ...params.config.provider }
+          }
+          saveConfig(merged)
+          return ok(merged)
+        },
       },
     },
     instance: {
@@ -217,8 +317,15 @@ export function createSandboxClient(_options?: { emitter?: SandboxEventEmitter }
       initGit: async () => unsupported("project.initGit", false, "Git initialization requires a host filesystem and is unavailable in the browser sandbox."),
     },
     provider: {
-      list: async () => ok([]),
-      auth: async () => unsupported("provider.auth", [], "Provider authentication requires a server callback and is unavailable in the browser sandbox."),
+      list: async () => ok(buildProviderList(loadConfig())),
+      auth: async () => {
+        const providerConfigs: Record<string, any> = loadConfig().provider ?? {}
+        const result: Record<string, any[]> = {}
+        for (const id of Object.keys(providerConfigs)) {
+          result[id] = [{ type: "api", label: "API Key" }]
+        }
+        return ok(result)
+      },
       oauth: {
         authorize: async () => unsupported("provider.oauth.authorize", { url: undefined, instructions: undefined, error: "unsupported-in-browser-sandbox" }, "Provider OAuth requires a server callback and is unavailable in the browser sandbox."),
         callback: async () => unsupported("provider.oauth.callback", { error: "unsupported-in-browser-sandbox" }, "Provider OAuth requires a server callback and is unavailable in the browser sandbox."),

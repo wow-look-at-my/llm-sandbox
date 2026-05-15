@@ -1,7 +1,6 @@
 import { runAgentLoop } from "./ai/agent-loop"
 import { SYSTEM_PROMPT } from "./ai/system-prompt"
 import type { ChatMessage, AgentEvent } from "./ai/types"
-import { loadSettings } from "./sandbox-settings"
 import * as db from "./db"
 
 export type SandboxEventHandler = (event: unknown) => void
@@ -28,10 +27,32 @@ function makePartId() {
   return crypto.randomUUID()
 }
 
+function getAgentConfig(): { baseUrl: string; apiKey: string; model: string } {
+  let config: Record<string, any> = {}
+  let auth: Record<string, any> = {}
+  try {
+    config = JSON.parse(localStorage.getItem("opencode-global-config") || "{}")
+  } catch {}
+  try {
+    auth = JSON.parse(localStorage.getItem("opencode-auth") || "{}")
+  } catch {}
+
+  const modelStr: string = config.model || ""
+  const slashIdx = modelStr.indexOf("/")
+  const providerID = slashIdx > 0 ? modelStr.slice(0, slashIdx) : ""
+  const modelID = slashIdx > 0 ? modelStr.slice(slashIdx + 1) : modelStr
+
+  const providerCfg = config.provider?.[providerID]
+  const baseUrl: string = providerCfg?.options?.baseURL || ""
+  const apiKey: string = auth[providerID]?.key || ""
+
+  return { baseUrl, apiKey, model: modelID }
+}
+
 export async function sendMessage(sessionId: string, content: string) {
-  const settings = loadSettings()
+  const settings = getAgentConfig()
   if (!settings.apiKey) {
-    throw new Error("API key not configured. Open settings to add your API key.")
+    throw new Error("No provider configured. Open Settings > Providers to add one.")
   }
 
   const userMessageId = crypto.randomUUID()
