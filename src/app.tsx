@@ -312,6 +312,7 @@ export function AppInterface(props: {
               <GlobalSyncProvider>
                 <Dynamic
                   component={props.router ?? Router}
+                  base={import.meta.env.BASE_URL.replace(/\/$/, "")}
                   root={(routerProps) => <RouterRoot appChildren={props.children}>{routerProps.children}</RouterRoot>}
                 >
                   <Route path="/" component={HomeRoute} />
