@@ -8,10 +8,10 @@ on:
 
 permissions:
   contents: write
-  pages: write
   id-token: write
   pull-requests: write
   statuses: write
+  actions: read
 
 jobs:
   build:
@@ -28,7 +28,7 @@ jobs:
 
       - run: npm run build
         env:
-          VITE_BASE: ${{ github.event_name == 'pull_request' && format('/llm-sandbox/pr-preview/pr-{0}/', github.event.number) || '/llm-sandbox/' }}
+          VITE_BASE: ${{ github.event_name == 'pull_request' && format('/llm-sandbox/branch/pr-{0}/', github.event.number) || '/llm-sandbox/' }}
 
       - uses: actions/upload-artifact@v4
         with:
@@ -37,7 +37,7 @@ jobs:
 
   deploy:
     needs: build
-    uses: PazerOP/pr-preview-action/.github/workflows/preview.yml@a1f11d1efb5096634a46afe601f73ce01720dc6b
+    uses: PazerOP/pr-preview-action/.github/workflows/preview.yml@master
     with:
       artifact-name: build
     secrets: inherit
