@@ -119,7 +119,6 @@ export default defineConfig({
               "@opencode-ai/core/util/retry": path.join(srcDir, "lib/utils/retry.ts"),
               "@opencode-ai/core/util/array": path.join(srcDir, "lib/utils/array.ts"),
               "@sentry/solid": path.join(srcDir, "lib/stubs/sentry.ts"),
-              "ghostty-web": path.join(srcDir, "lib/stubs/ghostty-web.ts"),
             },
           },
           worker: {
@@ -145,10 +144,18 @@ export default defineConfig({
   base: process.env.VITE_BASE ?? (process.env.GITHUB_ACTIONS ? "/llm-sandbox/" : "/"),
   server: {
     host: "0.0.0.0",
-    port: 3000,
+    port: 42731,
+    strictPort: true,
+    headers: {
+      "Cross-Origin-Opener-Policy": "same-origin",
+      "Cross-Origin-Embedder-Policy": "require-corp",
+    },
   },
   build: {
     target: "esnext",
     sourcemap: true,
+  },
+  optimizeDeps: {
+    exclude: ["@wasmer/sdk"],
   },
 })

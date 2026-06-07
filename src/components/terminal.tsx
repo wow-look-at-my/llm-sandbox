@@ -16,6 +16,7 @@ import type { LocalPTY } from "@/context/terminal"
 import { disposeIfDisposable, getHoveredLinkText, setOptionIfSupported } from "@/utils/runtime-adapters"
 import { terminalWriter } from "@/utils/terminal-writer"
 import { terminalWebSocketURL } from "@/utils/terminal-websocket-url"
+import { connectWasmerTerminal } from "@/lib/wasmer-terminal"
 
 const TOGGLE_TERMINAL_ID = "terminal.toggle"
 const DEFAULT_TOGGLE_TERMINAL_KEYBIND = "ctrl+`"
@@ -168,6 +169,7 @@ export const Terminal = (props: TerminalProps) => {
   const username = auth?.username ?? "opencode"
   const password = auth?.password ?? ""
   const sameOrigin = new URL(url, location.href).origin === location.origin
+  const browserSandbox = url === "http://localhost:0"
   let container!: HTMLDivElement
   const [local, others] = splitProps(props, ["pty", "class", "classList", "autoFocus", "onConnect", "onConnectError"])
   const id = local.pty.id
@@ -416,10 +418,6 @@ export const Terminal = (props: TerminalProps) => {
         scheduleSize(size.cols, size.rows)
       })
       cleanups.push(() => disposeIfDisposable(onResize))
-      const onData = t.onData((data) => {
-        if (ws?.readyState === WebSocket.OPEN) ws.send(data)
-      })
-      cleanups.push(() => disposeIfDisposable(onData))
       const onKey = t.onKey((key) => {
         if (key.key == "Enter") {
           props.onSubmit?.()
@@ -443,6 +441,10 @@ export const Terminal = (props: TerminalProps) => {
           output.push(data)
           output.flush(resolve)
         })
+      const writeRaw = (data: string | Uint8Array) =>
+        new Promise<void>((resolve) => {
+          t.write(data, resolve)
+        })
 
       if (restore && restoreSize) {
         await write(restore)
@@ -459,6 +461,24 @@ export const Terminal = (props: TerminalProps) => {
         }
         startResize()
       }
+
+      if (browserSandbox) {
+        cleanups.push(
+          connectWasmerTerminal({
+            term: t,
+            write: writeRaw,
+            onConnect: local.onConnect,
+            onConnectError: local.onConnectError,
+            onSubmit: props.onSubmit,
+          }),
+        )
+        return
+      }
+
+      const onData = t.onData((data) => {
+        if (ws?.readyState === WebSocket.OPEN) ws.send(data)
+      })
+      cleanups.push(() => disposeIfDisposable(onData))
 
       const once = { value: false }
       const decoder = new TextDecoder()

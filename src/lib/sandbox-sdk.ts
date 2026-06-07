@@ -47,11 +47,11 @@ export const SANDBOX_SDK_METHODS: SandboxMethodClassification[] = [
   { method: "provider.list", support: "supported", behavior: "Builds provider metadata from browser-local provider configuration." },
   { method: "provider.oauth.authorize", support: "unsupported", behavior: "Returns a typed OAuth unavailable result after showing a limitation." },
   { method: "provider.oauth.callback", support: "unsupported", behavior: "Returns a typed OAuth unavailable result after showing a limitation." },
-  { method: "pty.connectToken", support: "unsupported", behavior: "Returns HTTP 405-like response after showing that web terminals are unavailable." },
-  { method: "pty.create", support: "unsupported", behavior: "Returns a local terminal record after showing that shell execution is unavailable." },
+  { method: "pty.connectToken", support: "stubbed-empty", behavior: "Unused for browser-local Wasmer terminals." },
+  { method: "pty.create", support: "supported", behavior: "Returns a browser-local Wasmer terminal record." },
   { method: "pty.get", support: "unsupported", behavior: "Returns HTTP 404-like response because no PTY backend exists." },
   { method: "pty.remove", support: "stubbed-empty", behavior: "No-op success for local terminal tab cleanup." },
-  { method: "pty.shells", support: "stubbed-empty", behavior: "Returns no host shells." },
+  { method: "pty.shells", support: "supported", behavior: "Returns the browser-local Wasmer shell." },
   { method: "pty.update", support: "stubbed-empty", behavior: "No-op success for local terminal tab metadata." },
   { method: "question.list", support: "stubbed-empty", behavior: "Returns no pending questions." },
   { method: "question.reject", support: "unsupported", behavior: "Returns success after showing that agent questions are unavailable." },
@@ -332,14 +332,14 @@ export function createSandboxClient(_options?: { emitter?: SandboxEventEmitter }
       },
     },
     pty: {
-      create: async (input?: { title?: string }) => unsupported("pty.create", { id: crypto.randomUUID(), title: input?.title ?? "Browser terminal unavailable" }, "Shell terminals require a host PTY process and are unavailable in the browser sandbox."),
+      create: async (input?: { title?: string }) => ok({ id: crypto.randomUUID(), title: input?.title ?? "Wasmer terminal" }),
       get: async () => response(404, undefined),
       connectToken: async () => {
         limitation("pty.connectToken", "Shell terminals require a host PTY process and are unavailable in the browser sandbox.")
         return response(405, { ticket: undefined })
       },
       remove: async () => ok(true),
-      shells: async () => ok([]),
+      shells: async () => ok(["wasmer/bash"]),
       update: async () => ok(true),
     },
     question: {
