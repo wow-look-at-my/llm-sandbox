@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import { canDisposeDirectory, pickDirectoriesToEvict } from "./global-sync/eviction"
+import { isProviderQueryKey } from "./global-sync/query-keys"
 import { estimateRootSessionTotal, loadRootSessionsWithFallback } from "./global-sync/session-load"
 
 describe("pickDirectoriesToEvict", () => {
@@ -60,6 +61,15 @@ describe("loadRootSessionsWithFallback", () => {
       { directory: "dir", roots: true, limit: 25 },
       { directory: "dir", roots: true },
     ])
+  })
+})
+
+describe("isProviderQueryKey", () => {
+  test("matches global and project provider queries", () => {
+    expect(isProviderQueryKey([null, "providers"])).toBe(true)
+    expect(isProviderQueryKey(["/repo", "providers"])).toBe(true)
+    expect(isProviderQueryKey(["config"])).toBe(false)
+    expect(isProviderQueryKey(["/repo", "agents"])).toBe(false)
   })
 })
 
