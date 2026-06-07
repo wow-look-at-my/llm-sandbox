@@ -35,7 +35,7 @@ export async function* runAgentLoop(
 
     let response: Response
     try {
-      response = await fetch(`${config.baseUrl}/v1/chat/completions`, {
+      response = await fetch(`${config.baseUrl}/chat/completions`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
