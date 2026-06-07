@@ -1,0 +1,1 @@
+{"version":3,"file":"ghostty-web-Dp-A66qE.js","sources":["../../src/lib/stubs/ghostty-web.ts"],"sourcesContent":["export default {}\nexport class GhosttyAddon {}\n"],"names":["ghosttyWeb","GhosttyAddon"],"mappings":"AAAA,MAAAA,EAAe,CAAA,EACR,MAAMC,CAAa,CAAC"}
