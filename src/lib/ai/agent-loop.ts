@@ -20,7 +20,10 @@ function chatCompletionEndpoint(baseUrl: string) {
 export function browserProxyTarget(target: string) {
   try {
     const url = new URL(target)
-    if (url.hostname !== "api.x.ai") return target
+    if (url.protocol !== "http:" && url.protocol !== "https:") return target
+    if (url.origin === BROWSER_CORS_PROXY.slice(0, -1)) return target
+    if (typeof location !== "undefined" && url.origin === location.origin) return target
+    if (url.hostname === "localhost" || url.hostname === "127.0.0.1" || url.hostname === "::1") return target
     return `${BROWSER_CORS_PROXY}?url=${encodeURIComponent(target)}`
   } catch {
     return target
