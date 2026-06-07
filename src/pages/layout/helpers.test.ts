@@ -116,6 +116,12 @@ describe("layout workspace helpers", () => {
     expect(String(pathKey("C:///"))).toBe("C:/")
   })
 
+  test("falls back to root for missing workspace keys", () => {
+    expect(String(pathKey(undefined))).toBe("/")
+    expect(String(pathKey(null))).toBe("/")
+    expect(String(pathKey(""))).toBe("/")
+  })
+
   test("keeps local first while preserving known order", () => {
     const result = effectiveWorkspaceOrder("/root", ["/root", "/b", "/c"], ["/root", "/c", "/a", "/b"])
     expect(result).toEqual(["/root", "/c", "/b"])

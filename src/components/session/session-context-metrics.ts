@@ -35,7 +35,9 @@ type Metrics = {
 }
 
 const tokenTotal = (msg: AssistantMessage) => {
-  return msg.tokens.input + msg.tokens.output + msg.tokens.reasoning + msg.tokens.cache.read + msg.tokens.cache.write
+  const tokens = msg.tokens
+  if (!tokens) return 0
+  return tokens.input + tokens.output + tokens.reasoning + tokens.cache.read + tokens.cache.write
 }
 
 const lastAssistantWithTokens = (messages: Message[]) => {
@@ -48,7 +50,7 @@ const lastAssistantWithTokens = (messages: Message[]) => {
 }
 
 const build = (messages: Message[] = [], providers: Provider[] = []): Metrics => {
-  const totalCost = messages.reduce((sum, msg) => sum + (msg.role === "assistant" ? msg.cost : 0), 0)
+  const totalCost = messages.reduce((sum, msg) => sum + (msg.role === "assistant" ? (msg.cost ?? 0) : 0), 0)
   const message = lastAssistantWithTokens(messages)
   if (!message) return { totalCost, context: undefined }
 

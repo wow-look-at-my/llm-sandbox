@@ -6,7 +6,7 @@ import { onCleanup } from "solid-js"
 import { showToast } from "@opencode-ai/ui/toast"
 import { useServer } from "./server"
 import { createSandboxClient, SANDBOX_LIMITATION_EVENT } from "@/lib/sandbox-sdk"
-import { onSandboxEvent } from "@/lib/sandbox-agent"
+import { onSandboxEvent } from "@/lib/sandbox-events"
 
 export const { use: useGlobalSDK, provider: GlobalSDKProvider } = createSimpleContext({
   name: "GlobalSDK",
@@ -18,7 +18,7 @@ export const { use: useGlobalSDK, provider: GlobalSDKProvider } = createSimpleCo
     }>()
 
     const unsub = onSandboxEvent((event: unknown) => {
-      emitter.emit("sandbox", event as SDKEvent)
+      emitter.emit("/", event as SDKEvent)
     })
     onCleanup(unsub)
 

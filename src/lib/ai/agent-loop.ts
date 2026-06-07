@@ -4,11 +4,30 @@ import { assembleToolCalls, parseSSEStream } from "./stream-parser"
 import { executeTool } from "./tool-executor"
 
 const MAX_ITERATIONS = 25
+const BROWSER_CORS_PROXY = "https://proxy.pazer.ai/"
 
 interface AgentConfig {
   baseUrl: string
   apiKey: string
   model: string
+}
+
+function chatCompletionEndpoint(baseUrl: string) {
+  const target = `${baseUrl.replace(/\/+$/, "")}/chat/completions`
+  return browserProxyTarget(target)
+}
+
+export function browserProxyTarget(target: string) {
+  try {
+    const url = new URL(target)
+    if (url.protocol !== "http:" && url.protocol !== "https:") return target
+    if (url.origin === BROWSER_CORS_PROXY.slice(0, -1)) return target
+    if (typeof location !== "undefined" && url.origin === location.origin) return target
+    if (url.hostname === "localhost" || url.hostname === "127.0.0.1" || url.hostname === "::1") return target
+    return `${BROWSER_CORS_PROXY}?url=${encodeURIComponent(target)}`
+  } catch {
+    return target
+  }
 }
 
 /**
@@ -23,6 +42,7 @@ interface AgentConfig {
 export async function* runAgentLoop(
   config: AgentConfig,
   messages: ChatMessage[],
+  sessionID: string,
   signal: AbortSignal,
 ): AsyncGenerator<AgentEvent> {
   const conversation = [...messages]
@@ -35,7 +55,7 @@ export async function* runAgentLoop(
 
     let response: Response
     try {
-      response = await fetch(`${config.baseUrl}/chat/completions`, {
+      response = await fetch(chatCompletionEndpoint(config.baseUrl), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -112,7 +132,7 @@ export async function* runAgentLoop(
 
         yield { type: "tool_call_start", toolCall: tc }
 
-        const result = await executeTool(tc)
+        const result = await executeTool(tc, { sessionID, signal })
 
         yield { type: "tool_call_result", toolCallId: tc.id, name: tc.function.name, result }
 

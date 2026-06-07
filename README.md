@@ -9,7 +9,7 @@ A browser-based AI coding agent using the official OpenCode web UI, running enti
 - **AI**: Direct OpenAI-compatible API calls from the browser (user provides their own key)
 - **Storage**: IndexedDB for session/message persistence
 
-The agent has 5 tools: `read_file`, `write_file`, `edit_file`, `list_directory`, `search_files` -- all operating on OPFS.
+The agent has OPFS file tools (`read_file`, `write_file`, `edit_file`, `list_directory`, `search_files`) and browser-backed Git tools (`git_clone`, `git_status`, `git_switch_branch`, `git_commit`, `git_push`).
 
 ## Setup
 
@@ -46,6 +46,8 @@ OPFS  OpenAI   IndexedDB
 | `src/lib/opfs.ts` | OPFS virtual filesystem |
 | `src/lib/ai/agent-loop.ts` | Agent loop (stream + tool execution) |
 | `src/lib/ai/tool-executor.ts` | Tool dispatch to OPFS |
+| `src/lib/git/sandbox-git.ts` | Browser Git operations backed by OPFS |
+| `src/lib/sandbox-permissions.ts` | Pending permission requests, including explicit git push approvals |
 | `src/lib/sandbox-agent.ts` | Bridges agent loop with OpenCode event system |
 | `src/lib/sandbox-settings.ts` | API key/endpoint/model config |
 | `src/lib/db.ts` | IndexedDB sessions/messages |
@@ -54,7 +56,7 @@ OPFS  OpenAI   IndexedDB
 ## Limitations
 
 - No shell/bash execution (sandboxed)
-- No git operations
+- Git operations use browser HTTP and OPFS. `git_push` requires explicit user approval, with an optional exact-target "Allow always" approval.
 - No LSP/MCP integration
 - No terminal (ghostty-web removed)
 - CORS: Your API endpoint must allow browser CORS. OpenAI does; some providers may not.

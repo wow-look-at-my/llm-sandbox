@@ -141,7 +141,10 @@ export default defineConfig({
       },
     },
   ],
-  base: process.env.VITE_BASE ?? (process.env.GITHUB_ACTIONS ? "/llm-sandbox/" : "/"),
+  // Relative base: emit "./assets/..." so a single build is portable across any deploy
+  // path (root, /branch/master/, /branch/pr-N/) without baking the path in at build time.
+  // The SolidJS Router base is derived from the document URL at runtime (see app.tsx).
+  base: "./",
   server: {
     host: "0.0.0.0",
     port: 42731,

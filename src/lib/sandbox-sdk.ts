@@ -3,6 +3,7 @@ import { abortCurrentSession, sendMessage } from "@/lib/sandbox-agent"
 import * as sandboxDb from "@/lib/db"
 import * as opfs from "@/lib/opfs"
 import { createOpfsSdkAdapter } from "@/context/global-sdk-opfs"
+import { listSandboxPermissions, respondSandboxPermission } from "@/lib/sandbox-permissions"
 export { formatSandboxMessagesResponse } from "@/lib/sandbox-message-format"
 import { formatSandboxMessagesResponse } from "@/lib/sandbox-message-format"
 
@@ -37,8 +38,8 @@ export const SANDBOX_SDK_METHODS: SandboxMethodClassification[] = [
   { method: "mcp.disconnect", support: "unsupported", behavior: "Returns a disconnected status after showing that MCP servers are unavailable." },
   { method: "mcp.status", support: "stubbed-empty", behavior: "Returns no MCP servers." },
   { method: "path.get", support: "supported", behavior: "Returns the browser sandbox root directory metadata." },
-  { method: "permission.list", support: "stubbed-empty", behavior: "Returns no pending permission requests." },
-  { method: "permission.respond", support: "unsupported", behavior: "Returns success after showing that interactive permission responses are unavailable." },
+  { method: "permission.list", support: "supported", behavior: "Returns pending browser sandbox permission requests." },
+  { method: "permission.respond", support: "supported", behavior: "Responds to pending browser sandbox permission requests." },
   { method: "project.current", support: "supported", behavior: "Returns the singleton browser Sandbox project." },
   { method: "project.initGit", support: "unsupported", behavior: "Returns false after showing that Git initialization is unavailable." },
   { method: "project.list", support: "supported", behavior: "Returns the singleton browser Sandbox project." },
@@ -136,6 +137,10 @@ function unsupported<T>(method: string, data: T, description: string): Promise<S
 
 function messageID() {
   return { id: crypto.randomUUID() }
+}
+
+function promptContent(parts?: Array<{ type?: string; text?: string }>) {
+  return (parts ?? []).filter((part) => part.type === "text").map((part) => part.text || "").join("\n")
 }
 
 function loadStoredRecord(key: string): Record<string, any> {
@@ -237,7 +242,7 @@ export function createSandboxClient(_options?: { emitter?: SandboxEventEmitter }
   const opfsSdk = createOpfsSdkAdapter(opfs)
   const client = {
     app: {
-      agents: async () => ok([{ id: "default", name: "Default", mode: "build" }]),
+      agents: async () => ok([{ name: "build", mode: "primary", permission: {}, options: {} }]),
       skills: async () => ok([]),
     },
     auth: {
@@ -307,8 +312,9 @@ export function createSandboxClient(_options?: { emitter?: SandboxEventEmitter }
       get: async () => ok(SANDBOX_PATH),
     },
     permission: {
-      list: async () => ok([]),
-      respond: async () => unsupported("permission.respond", true, "Interactive permission prompts are not emitted by the browser sandbox agent."),
+      list: async (params?: { sessionID?: string }) => ok(listSandboxPermissions(params?.sessionID)),
+      respond: async (params: { sessionID: string; permissionID: string; response: "once" | "always" | "reject" }) =>
+        ok(respondSandboxPermission(params)),
     },
     project: {
       list: async () => ok([SANDBOX_PROJECT]),
@@ -368,12 +374,42 @@ export function createSandboxClient(_options?: { emitter?: SandboxEventEmitter }
       list: async () => ok((await sandboxDb.listSessions()).map(sessionPayload)),
       messages: async (params: { sessionID: string; limit?: number; before?: string }) =>
         formatSandboxMessagesResponse(await sandboxDb.getMessages(params.sessionID), params),
-      prompt: async (params: { sessionID: string; parts?: Array<{ type?: string; text?: string }> }) => {
-        const content = (params.parts ?? []).filter((part) => part.type === "text").map((part) => part.text || "").join("\n")
-        if (content) sendMessage(params.sessionID, content).catch((err) => console.error("[sandbox] agent error:", err))
-        return ok(messageID())
+      prompt: async (params: {
+        sessionID: string
+        agent?: string
+        messageID?: string
+        model?: string | { providerID?: string; modelID?: string }
+        parts?: Array<{ type?: string; text?: string }>
+      }) => {
+        const id = params.messageID ?? messageID().id
+        const content = promptContent(params.parts)
+        if (content)
+          sendMessage(params.sessionID, content, {
+            agent: params.agent,
+            messageID: id,
+            model: params.model,
+          }).catch((err) =>
+            console.error("[sandbox] agent error:", err),
+          )
+        return ok({ id })
       },
-      promptAsync: async (params: { sessionID: string; parts?: Array<{ type?: string; text?: string }> }) => client.session.prompt(params),
+      promptAsync: async (params: {
+        sessionID: string
+        agent?: string
+        messageID?: string
+        model?: string | { providerID?: string; modelID?: string }
+        parts?: Array<{ type?: string; text?: string }>
+      }) => {
+        const id = params.messageID ?? messageID().id
+        const content = promptContent(params.parts)
+        if (content)
+          await sendMessage(params.sessionID, content, {
+            agent: params.agent,
+            messageID: id,
+            model: params.model,
+          })
+        return ok({ id })
+      },
       revert: async () => unsupported("session.revert", true, "Message revert requires server-side patch state and is unavailable in the browser sandbox."),
       share: async () => unsupported("session.share", undefined, "Cloud session sharing is unavailable in the browser sandbox."),
       shell: async () => unsupported("session.shell", messageID(), "Shell execution requires a host process and is unavailable in the browser sandbox."),
