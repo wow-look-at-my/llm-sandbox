@@ -22,6 +22,13 @@ function makePartId() {
   return crypto.randomUUID()
 }
 
+const emptyAssistantTokens = () => ({
+  input: 0,
+  output: 0,
+  reasoning: 0,
+  cache: { read: 0, write: 0 },
+})
+
 function selectedModelKey(model: SelectedModel) {
   if (!model) return ""
   if (typeof model === "string") return model
@@ -107,6 +114,8 @@ export async function sendMessage(
     providerID: settings.providerID,
     modelID: settings.model,
     mode: "primary",
+    cost: 0,
+    tokens: emptyAssistantTokens(),
   }
 
   const userParts = [
