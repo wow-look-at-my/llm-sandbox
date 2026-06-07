@@ -8,7 +8,7 @@ type Provider = {
 
 type Model = {
   name?: string
-  limit: {
+  limit?: {
     context: number
   }
 }
@@ -37,7 +37,13 @@ type Metrics = {
 const tokenTotal = (msg: AssistantMessage) => {
   const tokens = msg.tokens
   if (!tokens) return 0
-  return tokens.input + tokens.output + tokens.reasoning + tokens.cache.read + tokens.cache.write
+  return (
+    (tokens.input ?? 0) +
+    (tokens.output ?? 0) +
+    (tokens.reasoning ?? 0) +
+    (tokens.cache?.read ?? 0) +
+    (tokens.cache?.write ?? 0)
+  )
 }
 
 const lastAssistant = (messages: Message[]) => {
@@ -55,7 +61,7 @@ const build = (messages: Message[] = [], providers: Provider[] = []): Metrics =>
 
   const provider = providers.find((item) => item.id === message.providerID)
   const model = provider?.models[message.modelID]
-  const limit = model?.limit.context
+  const limit = model?.limit?.context
   const tokens = message.tokens
   const total = tokenTotal(message)
 
@@ -71,8 +77,8 @@ const build = (messages: Message[] = [], providers: Provider[] = []): Metrics =>
       input: tokens?.input ?? 0,
       output: tokens?.output ?? 0,
       reasoning: tokens?.reasoning ?? 0,
-      cacheRead: tokens?.cache.read ?? 0,
-      cacheWrite: tokens?.cache.write ?? 0,
+      cacheRead: tokens?.cache?.read ?? 0,
+      cacheWrite: tokens?.cache?.write ?? 0,
       total,
       usage: limit ? Math.round((total / limit) * 100) : null,
     },
