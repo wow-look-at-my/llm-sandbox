@@ -6,6 +6,14 @@ import * as db from "./db"
 
 let currentAbort: AbortController | null = null
 
+type SelectedModel =
+  | string
+  | {
+      providerID?: string
+      modelID?: string
+    }
+  | undefined
+
 function emit(event: unknown) {
   emitSandboxEvent(event)
 }
@@ -14,7 +22,31 @@ function makePartId() {
   return crypto.randomUUID()
 }
 
-function getAgentConfig(): { baseUrl: string; apiKey: string; model: string } {
+function selectedModelKey(model: SelectedModel) {
+  if (!model) return ""
+  if (typeof model === "string") return model
+  if (!model.providerID || !model.modelID) return ""
+  return `${model.providerID}/${model.modelID}`
+}
+
+export function resolveSandboxAgentConfig(input: {
+  config: Record<string, any>
+  auth: Record<string, any>
+  model?: SelectedModel
+}): { baseUrl: string; apiKey: string; model: string } {
+  const modelStr: string = selectedModelKey(input.model) || input.config.model || ""
+  const slashIdx = modelStr.indexOf("/")
+  const providerID = slashIdx > 0 ? modelStr.slice(0, slashIdx) : ""
+  const modelID = slashIdx > 0 ? modelStr.slice(slashIdx + 1) : modelStr
+
+  const providerCfg = input.config.provider?.[providerID]
+  const baseUrl: string = providerCfg?.options?.baseURL || ""
+  const apiKey: string = input.auth[providerID]?.key || ""
+
+  return { baseUrl, apiKey, model: modelID }
+}
+
+function getAgentConfig(model?: SelectedModel): { baseUrl: string; apiKey: string; model: string } {
   let config: Record<string, any> = {}
   let auth: Record<string, any> = {}
   try {
@@ -24,20 +56,11 @@ function getAgentConfig(): { baseUrl: string; apiKey: string; model: string } {
     auth = JSON.parse(localStorage.getItem("opencode-auth") || "{}")
   } catch {}
 
-  const modelStr: string = config.model || ""
-  const slashIdx = modelStr.indexOf("/")
-  const providerID = slashIdx > 0 ? modelStr.slice(0, slashIdx) : ""
-  const modelID = slashIdx > 0 ? modelStr.slice(slashIdx + 1) : modelStr
-
-  const providerCfg = config.provider?.[providerID]
-  const baseUrl: string = providerCfg?.options?.baseURL || ""
-  const apiKey: string = auth[providerID]?.key || ""
-
-  return { baseUrl, apiKey, model: modelID }
+  return resolveSandboxAgentConfig({ config, auth, model })
 }
 
-export async function sendMessage(sessionId: string, content: string) {
-  const settings = getAgentConfig()
+export async function sendMessage(sessionId: string, content: string, options?: { model?: SelectedModel }) {
+  const settings = getAgentConfig(options?.model)
   if (!settings.apiKey) {
     throw new Error("No provider configured. Open Settings > Providers to add one.")
   }

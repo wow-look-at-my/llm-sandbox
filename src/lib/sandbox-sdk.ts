@@ -370,12 +370,23 @@ export function createSandboxClient(_options?: { emitter?: SandboxEventEmitter }
       list: async () => ok((await sandboxDb.listSessions()).map(sessionPayload)),
       messages: async (params: { sessionID: string; limit?: number; before?: string }) =>
         formatSandboxMessagesResponse(await sandboxDb.getMessages(params.sessionID), params),
-      prompt: async (params: { sessionID: string; parts?: Array<{ type?: string; text?: string }> }) => {
+      prompt: async (params: {
+        sessionID: string
+        model?: string | { providerID?: string; modelID?: string }
+        parts?: Array<{ type?: string; text?: string }>
+      }) => {
         const content = (params.parts ?? []).filter((part) => part.type === "text").map((part) => part.text || "").join("\n")
-        if (content) sendMessage(params.sessionID, content).catch((err) => console.error("[sandbox] agent error:", err))
+        if (content)
+          sendMessage(params.sessionID, content, { model: params.model }).catch((err) =>
+            console.error("[sandbox] agent error:", err),
+          )
         return ok(messageID())
       },
-      promptAsync: async (params: { sessionID: string; parts?: Array<{ type?: string; text?: string }> }) => client.session.prompt(params),
+      promptAsync: async (params: {
+        sessionID: string
+        model?: string | { providerID?: string; modelID?: string }
+        parts?: Array<{ type?: string; text?: string }>
+      }) => client.session.prompt(params),
       revert: async () => unsupported("session.revert", true, "Message revert requires server-side patch state and is unavailable in the browser sandbox."),
       share: async () => unsupported("session.share", undefined, "Cloud session sharing is unavailable in the browser sandbox."),
       shell: async () => unsupported("session.shell", messageID(), "Shell execution requires a host process and is unavailable in the browser sandbox."),
