@@ -28,7 +28,7 @@ jobs:
 
       - run: npm run build
         env:
-          VITE_BASE: ${{ github.event_name == 'pull_request' && format('/llm-sandbox/pr-preview/pr-{0}/', github.event.number) || '/llm-sandbox/' }}
+          VITE_BASE: ${{ github.event_name == 'pull_request' && format('/llm-sandbox/branch/pr-{0}/', github.event.number) || '/llm-sandbox/' }}
 
       - uses: actions/upload-artifact@v4
         with:
