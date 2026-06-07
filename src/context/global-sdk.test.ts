@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { formatSandboxMessagesResponse } from "./global-sdk"
+import { formatSandboxMessagesResponse } from "@/lib/sandbox-message-format"
 
 describe("sandbox session.messages response", () => {
   test("fetchMessages-style logic receives persisted user and assistant messages with normalized parts", () => {
