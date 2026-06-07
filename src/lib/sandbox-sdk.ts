@@ -139,6 +139,10 @@ function messageID() {
   return { id: crypto.randomUUID() }
 }
 
+function promptContent(parts?: Array<{ type?: string; text?: string }>) {
+  return (parts ?? []).filter((part) => part.type === "text").map((part) => part.text || "").join("\n")
+}
+
 function loadStoredRecord(key: string): Record<string, any> {
   if (typeof localStorage === "undefined") return {}
   try {
@@ -372,21 +376,40 @@ export function createSandboxClient(_options?: { emitter?: SandboxEventEmitter }
         formatSandboxMessagesResponse(await sandboxDb.getMessages(params.sessionID), params),
       prompt: async (params: {
         sessionID: string
+        agent?: string
+        messageID?: string
         model?: string | { providerID?: string; modelID?: string }
         parts?: Array<{ type?: string; text?: string }>
       }) => {
-        const content = (params.parts ?? []).filter((part) => part.type === "text").map((part) => part.text || "").join("\n")
+        const id = params.messageID ?? messageID().id
+        const content = promptContent(params.parts)
         if (content)
-          sendMessage(params.sessionID, content, { model: params.model }).catch((err) =>
+          sendMessage(params.sessionID, content, {
+            agent: params.agent,
+            messageID: id,
+            model: params.model,
+          }).catch((err) =>
             console.error("[sandbox] agent error:", err),
           )
-        return ok(messageID())
+        return ok({ id })
       },
       promptAsync: async (params: {
         sessionID: string
+        agent?: string
+        messageID?: string
         model?: string | { providerID?: string; modelID?: string }
         parts?: Array<{ type?: string; text?: string }>
-      }) => client.session.prompt(params),
+      }) => {
+        const id = params.messageID ?? messageID().id
+        const content = promptContent(params.parts)
+        if (content)
+          await sendMessage(params.sessionID, content, {
+            agent: params.agent,
+            messageID: id,
+            model: params.model,
+          })
+        return ok({ id })
+      },
       revert: async () => unsupported("session.revert", true, "Message revert requires server-side patch state and is unavailable in the browser sandbox."),
       share: async () => unsupported("session.share", undefined, "Cloud session sharing is unavailable in the browser sandbox."),
       shell: async () => unsupported("session.shell", messageID(), "Shell execution requires a host process and is unavailable in the browser sandbox."),

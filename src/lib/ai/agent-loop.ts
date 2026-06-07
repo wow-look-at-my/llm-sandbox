@@ -4,11 +4,27 @@ import { assembleToolCalls, parseSSEStream } from "./stream-parser"
 import { executeTool } from "./tool-executor"
 
 const MAX_ITERATIONS = 25
+const BROWSER_CORS_PROXY = "https://proxy.pazer.ai/"
 
 interface AgentConfig {
   baseUrl: string
   apiKey: string
   model: string
+}
+
+function chatCompletionEndpoint(baseUrl: string) {
+  const target = `${baseUrl.replace(/\/+$/, "")}/chat/completions`
+  return browserProxyTarget(target)
+}
+
+export function browserProxyTarget(target: string) {
+  try {
+    const url = new URL(target)
+    if (url.hostname !== "api.x.ai") return target
+    return `${BROWSER_CORS_PROXY}?url=${encodeURIComponent(target)}`
+  } catch {
+    return target
+  }
 }
 
 /**
@@ -36,7 +52,7 @@ export async function* runAgentLoop(
 
     let response: Response
     try {
-      response = await fetch(`${config.baseUrl}/chat/completions`, {
+      response = await fetch(chatCompletionEndpoint(config.baseUrl), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
