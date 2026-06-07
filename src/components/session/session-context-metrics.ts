@@ -38,18 +38,17 @@ const tokenTotal = (msg: AssistantMessage) => {
   return msg.tokens.input + msg.tokens.output + msg.tokens.reasoning + msg.tokens.cache.read + msg.tokens.cache.write
 }
 
-const lastAssistantWithTokens = (messages: Message[]) => {
+const lastAssistant = (messages: Message[]) => {
   for (let i = messages.length - 1; i >= 0; i--) {
     const msg = messages[i]
     if (msg.role !== "assistant") continue
-    if (tokenTotal(msg) <= 0) continue
     return msg
   }
 }
 
 const build = (messages: Message[] = [], providers: Provider[] = []): Metrics => {
-  const totalCost = messages.reduce((sum, msg) => sum + (msg.role === "assistant" ? msg.cost : 0), 0)
-  const message = lastAssistantWithTokens(messages)
+  const totalCost = messages.reduce((sum, msg) => sum + (msg.role === "assistant" ? (msg.cost ?? 0) : 0), 0)
+  const message = lastAssistant(messages)
   if (!message) return { totalCost, context: undefined }
 
   const provider = providers.find((item) => item.id === message.providerID)
@@ -63,8 +62,8 @@ const build = (messages: Message[] = [], providers: Provider[] = []): Metrics =>
       message,
       provider,
       model,
-      providerLabel: provider?.name ?? message.providerID,
-      modelLabel: model?.name ?? message.modelID,
+      providerLabel: provider?.name ?? message.providerID ?? "—",
+      modelLabel: model?.name ?? message.modelID ?? "—",
       limit,
       input: message.tokens.input,
       output: message.tokens.output,

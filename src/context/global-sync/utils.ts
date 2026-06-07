@@ -38,3 +38,22 @@ export function sanitizeProject(project: Project) {
     },
   }
 }
+
+export function normalizeProject(input: unknown): Project | undefined {
+  if (!input || typeof input !== "object") return
+
+  const project = input as Project & { id?: unknown; worktree?: unknown; sandboxes?: unknown }
+  if (typeof project.id !== "string") return
+  if (typeof project.worktree !== "string" || project.worktree.length === 0) return
+
+  const sandboxes = Array.isArray(project.sandboxes)
+    ? project.sandboxes.filter((sandbox): sandbox is string => typeof sandbox === "string")
+    : []
+
+  return sanitizeProject({
+    ...project,
+    id: project.id,
+    worktree: project.worktree,
+    sandboxes: sandboxes.length > 0 ? sandboxes : undefined,
+  })
+}
