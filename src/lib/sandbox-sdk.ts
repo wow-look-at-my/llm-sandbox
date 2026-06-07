@@ -238,7 +238,7 @@ export function createSandboxClient(_options?: { emitter?: SandboxEventEmitter }
   const opfsSdk = createOpfsSdkAdapter(opfs)
   const client = {
     app: {
-      agents: async () => ok([{ id: "default", name: "Default", mode: "build" }]),
+      agents: async () => ok([{ name: "build", mode: "primary", permission: {}, options: {} }]),
       skills: async () => ok([]),
     },
     auth: {
