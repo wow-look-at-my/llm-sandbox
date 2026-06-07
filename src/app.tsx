@@ -52,6 +52,14 @@ const loadSession = () => import("@/pages/session")
 const Session = lazy(loadSession)
 const Loading = () => <div class="size-full" />
 
+// The app is always served from its deployment root (e.g. "/llm-sandbox/branch/master/").
+// Assets use Vite's relative base ("./"), so derive the router base from the document URL
+// at load time rather than baking a deploy path into the build. This keeps a single build
+// portable across the root, per-branch, and PR-preview URLs. Computed once at module load,
+// before any client-side navigation can change document.baseURI.
+const ROUTER_BASE =
+  typeof document !== "undefined" ? new URL(document.baseURI).pathname.replace(/\/[^/]*$/, "") : ""
+
 if (typeof location === "object" && /\/session(?:\/|$)/.test(location.pathname)) {
   void loadSession()
 }
@@ -312,7 +320,7 @@ export function AppInterface(props: {
               <GlobalSyncProvider>
                 <Dynamic
                   component={props.router ?? Router}
-                  base={import.meta.env.BASE_URL.replace(/\/$/, "")}
+                  base={ROUTER_BASE}
                   root={(routerProps) => <RouterRoot appChildren={props.children}>{routerProps.children}</RouterRoot>}
                 >
                   <Route path="/" component={HomeRoute} />
