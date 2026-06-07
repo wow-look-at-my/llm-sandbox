@@ -8,10 +8,10 @@ on:
 
 permissions:
   contents: write
-  pages: write
   id-token: write
   pull-requests: write
   statuses: write
+  actions: read
 
 jobs:
   build:
