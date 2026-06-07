@@ -6,6 +6,14 @@ import * as db from "./db"
 
 let currentAbort: AbortController | null = null
 
+type SelectedModel =
+  | string
+  | {
+      providerID?: string
+      modelID?: string
+    }
+  | undefined
+
 function emit(event: unknown) {
   emitSandboxEvent(event)
 }
@@ -14,7 +22,49 @@ function makePartId() {
   return crypto.randomUUID()
 }
 
-function getAgentConfig(): { baseUrl: string; apiKey: string; model: string } {
+const emptyAssistantTokens = () => ({
+  input: 0,
+  output: 0,
+  reasoning: 0,
+  cache: { read: 0, write: 0 },
+})
+
+function selectedModelKey(model: SelectedModel) {
+  if (!model) return ""
+  if (typeof model === "string") return model
+  if (!model.providerID || !model.modelID) return ""
+  return `${model.providerID}/${model.modelID}`
+}
+
+function selectedModelInfo(model: SelectedModel, fallback: string) {
+  const modelStr = selectedModelKey(model) || fallback || ""
+  const slashIdx = modelStr.indexOf("/")
+  return {
+    providerID: slashIdx > 0 ? modelStr.slice(0, slashIdx) : "",
+    modelID: slashIdx > 0 ? modelStr.slice(slashIdx + 1) : modelStr,
+  }
+}
+
+export function resolveSandboxAgentConfig(input: {
+  config: Record<string, any>
+  auth: Record<string, any>
+  model?: SelectedModel
+}): { baseUrl: string; apiKey: string; model: string } {
+  const { providerID, modelID } = selectedModelInfo(input.model, input.config.model)
+
+  const providerCfg = input.config.provider?.[providerID]
+  const baseUrl: string = providerCfg?.options?.baseURL || ""
+  const apiKey: string = input.auth[providerID]?.key || ""
+
+  return { baseUrl, apiKey, model: modelID }
+}
+
+function getAgentConfig(model?: SelectedModel): {
+  baseUrl: string
+  apiKey: string
+  model: string
+  providerID: string
+} {
   let config: Record<string, any> = {}
   let auth: Record<string, any> = {}
   try {
@@ -24,43 +74,77 @@ function getAgentConfig(): { baseUrl: string; apiKey: string; model: string } {
     auth = JSON.parse(localStorage.getItem("opencode-auth") || "{}")
   } catch {}
 
-  const modelStr: string = config.model || ""
-  const slashIdx = modelStr.indexOf("/")
-  const providerID = slashIdx > 0 ? modelStr.slice(0, slashIdx) : ""
-  const modelID = slashIdx > 0 ? modelStr.slice(slashIdx + 1) : modelStr
-
-  const providerCfg = config.provider?.[providerID]
-  const baseUrl: string = providerCfg?.options?.baseURL || ""
-  const apiKey: string = auth[providerID]?.key || ""
-
-  return { baseUrl, apiKey, model: modelID }
+  return {
+    ...resolveSandboxAgentConfig({ config, auth, model }),
+    providerID: selectedModelInfo(model, config.model).providerID,
+  }
 }
 
-export async function sendMessage(sessionId: string, content: string) {
-  const settings = getAgentConfig()
+export async function sendMessage(
+  sessionId: string,
+  content: string,
+  options?: { agent?: string; messageID?: string; model?: SelectedModel },
+) {
+  const settings = getAgentConfig(options?.model)
   if (!settings.apiKey) {
     throw new Error("No provider configured. Open Settings > Providers to add one.")
   }
 
-  const userMessageId = crypto.randomUUID()
-  const assistantMessageId = crypto.randomUUID()
+  const userMessageId = options?.messageID || crypto.randomUUID()
+  const assistantMessageId = `${userMessageId}:assistant:${crypto.randomUUID()}`
+  const userCreated = Date.now()
+  const assistantCreated = userCreated + 1
+  const agent = options?.agent || "build"
 
-  const userParts = [{ id: makePartId(), type: "text" as const, text: content }]
+  const userMessage = {
+    id: userMessageId,
+    sessionID: sessionId,
+    role: "user",
+    time: { created: userCreated },
+    agent,
+    model: { providerID: settings.providerID, modelID: settings.model },
+  }
+  const assistantMessage = {
+    id: assistantMessageId,
+    sessionID: sessionId,
+    role: "assistant",
+    parentID: userMessageId,
+    time: { created: assistantCreated },
+    agent,
+    providerID: settings.providerID,
+    modelID: settings.model,
+    mode: "primary",
+    cost: 0,
+    tokens: emptyAssistantTokens(),
+  }
+
+  const userParts = [
+    { id: makePartId(), sessionID: sessionId, messageID: userMessageId, type: "text" as const, text: content },
+  ]
 
   await db.addMessage(sessionId, {
     id: userMessageId,
     role: "user",
     parts: userParts,
-    time: { created: Date.now() },
+    time: userMessage.time,
+    metadata: userMessage,
   })
 
+  emit({
+    type: "message.updated",
+    properties: { info: userMessage },
+  })
   emit({
     type: "message.part.updated",
     properties: {
       sessionID: sessionId,
       messageID: userMessageId,
-      part: { id: userParts[0].id, type: "text", text: content, messageID: userMessageId },
+      part: userParts[0],
     },
+  })
+  emit({
+    type: "message.updated",
+    properties: { info: assistantMessage },
   })
 
   emit({
@@ -111,9 +195,10 @@ export async function sendMessage(sessionId: string, content: string) {
               messageID: assistantMessageId,
               part: {
                 id: currentTextPartId,
+                sessionID: sessionId,
+                messageID: assistantMessageId,
                 type: "text",
                 text: accumulatedText,
-                messageID: assistantMessageId,
               },
             },
           })
@@ -128,6 +213,7 @@ export async function sendMessage(sessionId: string, content: string) {
             tool: event.toolCall.function.name,
             state: "running",
             args: tryParseJSON(event.toolCall.function.arguments),
+            sessionID: sessionId,
             messageID: assistantMessageId,
           }
           assistantParts.push(toolPart)
@@ -163,7 +249,13 @@ export async function sendMessage(sessionId: string, content: string) {
 
         case "message_complete": {
           if (accumulatedText) {
-            const textPart = { id: currentTextPartId, type: "text", text: accumulatedText }
+            const textPart = {
+              id: currentTextPartId,
+              sessionID: sessionId,
+              messageID: assistantMessageId,
+              type: "text",
+              text: accumulatedText,
+            }
             const idx = assistantParts.findIndex((p: any) => p.id === currentTextPartId)
             if (idx >= 0) {
               assistantParts[idx] = textPart
@@ -176,10 +268,21 @@ export async function sendMessage(sessionId: string, content: string) {
 
         case "error": {
           const errorPartId = makePartId()
-          assistantParts.push({
+          const errorPart = {
             id: errorPartId,
+            sessionID: sessionId,
+            messageID: assistantMessageId,
             type: "text",
             text: `Error: ${event.error}`,
+          }
+          assistantParts.push(errorPart)
+          emit({
+            type: "message.part.updated",
+            properties: {
+              sessionID: sessionId,
+              messageID: assistantMessageId,
+              part: errorPart,
+            },
           })
           emit({
             type: "session.error",
@@ -209,14 +312,31 @@ export async function sendMessage(sessionId: string, content: string) {
   }
 
   if (assistantParts.length === 0 && accumulatedText) {
-    assistantParts.push({ id: currentTextPartId, type: "text", text: accumulatedText })
+    assistantParts.push({
+      id: currentTextPartId,
+      sessionID: sessionId,
+      messageID: assistantMessageId,
+      type: "text",
+      text: accumulatedText,
+    })
+  }
+
+  const completedAssistantMessage = {
+    ...assistantMessage,
+    time: { ...assistantMessage.time, completed: Date.now() },
   }
 
   await db.addMessage(sessionId, {
     id: assistantMessageId,
     role: "assistant",
     parts: assistantParts,
-    time: { created: Date.now(), completed: Date.now() },
+    time: completedAssistantMessage.time,
+    metadata: completedAssistantMessage,
+  })
+
+  emit({
+    type: "message.updated",
+    properties: { info: completedAssistantMessage },
   })
 
   emit({
