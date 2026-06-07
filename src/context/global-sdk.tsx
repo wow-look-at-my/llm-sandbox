@@ -5,6 +5,8 @@ import { onCleanup } from "solid-js"
 import { useServer } from "./server"
 import { sendMessage, abortCurrentSession, onSandboxEvent } from "@/lib/sandbox-agent"
 import * as sandboxDb from "@/lib/db"
+import * as opfs from "@/lib/opfs"
+import { createOpfsSdkAdapter } from "./global-sdk-opfs"
 
 export const { use: useGlobalSDK, provider: GlobalSDKProvider } = createSimpleContext({
   name: "GlobalSDK",
@@ -22,6 +24,7 @@ export const { use: useGlobalSDK, provider: GlobalSDKProvider } = createSimpleCo
 
     const noop = async () => ({ data: undefined })
     const noopList = async () => ({ data: [] })
+    const opfsSdk = createOpfsSdkAdapter(opfs)
 
     const stubClient = new Proxy(
       {},
@@ -138,9 +141,9 @@ export const { use: useGlobalSDK, provider: GlobalSDKProvider } = createSimpleCo
               {},
               {
                 get(_t, method) {
-                  if (method === "list") return noopList
-                  if (method === "read") return async () => ({ data: { content: "" } })
-                  if (method === "status") return noopList
+                  if (method === "list") return opfsSdk.file.list
+                  if (method === "read") return opfsSdk.file.read
+                  if (method === "status") return opfsSdk.file.status
                   return noop
                 },
               },
@@ -150,7 +153,8 @@ export const { use: useGlobalSDK, provider: GlobalSDKProvider } = createSimpleCo
             return new Proxy(
               {},
               {
-                get() {
+                get(_t, method) {
+                  if (method === "files") return opfsSdk.find.files
                   return noopList
                 },
               },
