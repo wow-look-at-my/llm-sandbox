@@ -94,7 +94,19 @@ type SandboxEventEmitter = {
   emit: (key: string, event: Event) => void
 }
 
-const SANDBOX_PROJECT = { id: "sandbox", path: "/", worktree: "/", name: "Sandbox", sandboxes: [] }
+const SANDBOX_PROJECT_TIME = (() => {
+  const now = Date.now()
+  return { created: now, updated: now }
+})()
+
+const SANDBOX_PROJECT = {
+  id: "sandbox",
+  path: "/",
+  worktree: "/",
+  name: "Sandbox",
+  sandboxes: [],
+  time: SANDBOX_PROJECT_TIME,
+}
 const SANDBOX_PATH = { cwd: "/", root: "/", directory: "/", home: "/" }
 
 function ok<T>(data: T): SdkResponse<T> {
