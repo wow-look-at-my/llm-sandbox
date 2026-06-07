@@ -23,6 +23,7 @@ interface AgentConfig {
 export async function* runAgentLoop(
   config: AgentConfig,
   messages: ChatMessage[],
+  sessionID: string,
   signal: AbortSignal,
 ): AsyncGenerator<AgentEvent> {
   const conversation = [...messages]
@@ -112,7 +113,7 @@ export async function* runAgentLoop(
 
         yield { type: "tool_call_start", toolCall: tc }
 
-        const result = await executeTool(tc)
+        const result = await executeTool(tc, { sessionID, signal })
 
         yield { type: "tool_call_result", toolCallId: tc.id, name: tc.function.name, result }
 

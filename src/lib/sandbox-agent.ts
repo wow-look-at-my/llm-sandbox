@@ -1,26 +1,13 @@
 import { runAgentLoop } from "./ai/agent-loop"
 import { SYSTEM_PROMPT } from "./ai/system-prompt"
 import type { ChatMessage, AgentEvent } from "./ai/types"
+import { emitSandboxEvent } from "./sandbox-events"
 import * as db from "./db"
 
-export type SandboxEventHandler = (event: unknown) => void
-
 let currentAbort: AbortController | null = null
-const handlers = new Set<SandboxEventHandler>()
-
-export function onSandboxEvent(handler: SandboxEventHandler): () => void {
-  handlers.add(handler)
-  return () => handlers.delete(handler)
-}
 
 function emit(event: unknown) {
-  for (const handler of handlers) {
-    try {
-      handler(event)
-    } catch (e) {
-      console.error("[sandbox-agent] event handler error:", e)
-    }
-  }
+  emitSandboxEvent(event)
 }
 
 function makePartId() {
@@ -109,6 +96,7 @@ export async function sendMessage(sessionId: string, content: string) {
     for await (const event of runAgentLoop(
       { baseUrl: settings.baseUrl, apiKey: settings.apiKey, model: settings.model },
       chatHistory,
+      sessionId,
       signal,
     )) {
       if (signal.aborted) break

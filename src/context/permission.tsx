@@ -44,6 +44,11 @@ function hasPermissionPromptRules(permission: unknown) {
   return Object.values(config).some(isNonAllowRule)
 }
 
+function requiresExplicitUserApproval(permission: PermissionRequest) {
+  const metadata = permission.metadata as Record<string, unknown> | undefined
+  return metadata?.requiresExplicitUserApproval === true || metadata?.sandboxGitPush === true
+}
+
 export const { use: usePermission, provider: PermissionProvider } = createSimpleContext({
   name: "Permission",
   init: () => {
@@ -148,6 +153,7 @@ export const { use: usePermission, provider: PermissionProvider } = createSimple
     }
 
     function shouldAutoRespond(permission: PermissionRequest, directory?: string) {
+      if (requiresExplicitUserApproval(permission)) return false
       const session = directory ? globalSync.child(directory, { bootstrap: false })[0].session : []
       return autoRespondsPermission(store.autoAccept, session, permission, directory)
     }
