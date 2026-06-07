@@ -3,6 +3,7 @@ import { abortCurrentSession, sendMessage } from "@/lib/sandbox-agent"
 import * as sandboxDb from "@/lib/db"
 import * as opfs from "@/lib/opfs"
 import { createOpfsSdkAdapter } from "@/context/global-sdk-opfs"
+import { listSandboxPermissions, respondSandboxPermission } from "@/lib/sandbox-permissions"
 export { formatSandboxMessagesResponse } from "@/lib/sandbox-message-format"
 import { formatSandboxMessagesResponse } from "@/lib/sandbox-message-format"
 
@@ -37,8 +38,8 @@ export const SANDBOX_SDK_METHODS: SandboxMethodClassification[] = [
   { method: "mcp.disconnect", support: "unsupported", behavior: "Returns a disconnected status after showing that MCP servers are unavailable." },
   { method: "mcp.status", support: "stubbed-empty", behavior: "Returns no MCP servers." },
   { method: "path.get", support: "supported", behavior: "Returns the browser sandbox root directory metadata." },
-  { method: "permission.list", support: "stubbed-empty", behavior: "Returns no pending permission requests." },
-  { method: "permission.respond", support: "unsupported", behavior: "Returns success after showing that interactive permission responses are unavailable." },
+  { method: "permission.list", support: "supported", behavior: "Returns pending browser sandbox permission requests." },
+  { method: "permission.respond", support: "supported", behavior: "Responds to pending browser sandbox permission requests." },
   { method: "project.current", support: "supported", behavior: "Returns the singleton browser Sandbox project." },
   { method: "project.initGit", support: "unsupported", behavior: "Returns false after showing that Git initialization is unavailable." },
   { method: "project.list", support: "supported", behavior: "Returns the singleton browser Sandbox project." },
@@ -307,8 +308,9 @@ export function createSandboxClient(_options?: { emitter?: SandboxEventEmitter }
       get: async () => ok(SANDBOX_PATH),
     },
     permission: {
-      list: async () => ok([]),
-      respond: async () => unsupported("permission.respond", true, "Interactive permission prompts are not emitted by the browser sandbox agent."),
+      list: async (params?: { sessionID?: string }) => ok(listSandboxPermissions(params?.sessionID)),
+      respond: async (params: { sessionID: string; permissionID: string; response: "once" | "always" | "reject" }) =>
+        ok(respondSandboxPermission(params)),
     },
     project: {
       list: async () => ok([SANDBOX_PROJECT]),

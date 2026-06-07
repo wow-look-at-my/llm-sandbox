@@ -1,12 +1,21 @@
 import type { ToolCall } from "./types"
 import * as opfs from "../opfs"
+import { gitClone, gitCommit, gitPush, gitStatus, gitSwitchBranch } from "../git/sandbox-git"
+
+export type ToolExecutionContext = {
+  sessionID: string
+  signal?: AbortSignal
+}
 
 /**
  * Execute a single tool call against the OPFS virtual filesystem and return
  * a human-readable result string. Errors are caught and returned as text so
  * the agent can recover gracefully.
  */
-export async function executeTool(toolCall: ToolCall): Promise<string> {
+export async function executeTool(
+  toolCall: ToolCall,
+  context: ToolExecutionContext,
+): Promise<string> {
   try {
     const args = JSON.parse(toolCall.function.arguments)
 
@@ -42,6 +51,25 @@ export async function executeTool(toolCall: ToolCall): Promise<string> {
           .map((m) => `${m.path}:${m.line}: ${m.content}`)
           .join("\n")
       }
+
+      case "git_clone":
+        return await gitClone(args)
+
+      case "git_status":
+        return await gitStatus(args)
+
+      case "git_switch_branch":
+        return await gitSwitchBranch(args)
+
+      case "git_commit":
+        return await gitCommit(args)
+
+      case "git_push":
+        return await gitPush({
+          ...args,
+          sessionID: context.sessionID,
+          signal: context.signal,
+        })
 
       default:
         return `Unknown tool: ${toolCall.function.name}`
