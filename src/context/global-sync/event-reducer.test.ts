@@ -87,10 +87,13 @@ const baseState = (input: Partial<State> = {}) =>
 
 describe("applyGlobalEvent", () => {
   test("upserts project.updated in sorted position", () => {
-    const project = [{ id: "a" }, { id: "c" }] as Project[]
+    const project = [
+      { id: "a", worktree: "/repo/a" },
+      { id: "c", worktree: "/repo/c" },
+    ] as Project[]
     let refreshCount = 0
     applyGlobalEvent({
-      event: { type: "project.updated", properties: { id: "b" } },
+      event: { type: "project.updated", properties: { id: "b", worktree: "/repo/b" } },
       project,
       refresh: () => {
         refreshCount += 1
@@ -102,6 +105,31 @@ describe("applyGlobalEvent", () => {
 
     expect(project.map((x) => x.id)).toEqual(["a", "b", "c"])
     expect(refreshCount).toBe(0)
+  })
+
+  test("merges valid existing projects and drops malformed new projects", () => {
+    const project = [{ id: "a", worktree: "/repo/a", name: "Old" }] as Project[]
+    applyGlobalEvent({
+      event: { type: "project.updated", properties: { id: "a", name: "New" } },
+      project,
+      refresh() {},
+      setGlobalProject(next) {
+        if (typeof next === "function") next(project)
+      },
+    })
+
+    expect(project).toMatchObject([{ id: "a", worktree: "/repo/a", name: "New" }])
+
+    applyGlobalEvent({
+      event: { type: "project.updated", properties: { id: "b", worktree: { path: "/repo/b" } } },
+      project,
+      refresh() {},
+      setGlobalProject(next) {
+        if (typeof next === "function") next(project)
+      },
+    })
+
+    expect(project.map((x) => x.id)).toEqual(["a"])
   })
 
   test("handles global.disposed by triggering refresh", () => {

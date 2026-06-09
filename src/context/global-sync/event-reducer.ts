@@ -14,6 +14,7 @@ import type {
 import type { State, VcsCache } from "./types"
 import { trimSessions } from "./session-trim"
 import { dropSessionCaches } from "./session-cache"
+import { normalizeProject } from "./utils"
 import { diffs as list, message as clean } from "@/utils/diffs"
 
 const SKIP_PARTS = new Set(["patch", "step-start", "step-finish"])
@@ -30,19 +31,26 @@ export function applyGlobalEvent(input: {
   }
 
   if (input.event.type !== "project.updated") return
-  const properties = input.event.properties as Project
+  const properties = input.event.properties as Partial<Project> | undefined
+  if (!properties || typeof properties.id !== "string") return
+
   const result = Binary.search(input.project, properties.id, (s) => s.id)
   if (result.found) {
     input.setGlobalProject(
       produce((draft) => {
-        draft[result.index] = { ...draft[result.index], ...properties }
+        const next = normalizeProject({ ...draft[result.index], ...properties })
+        if (next) draft[result.index] = next
       }),
     )
     return
   }
+
+  const project = normalizeProject(properties)
+  if (!project) return
+
   input.setGlobalProject(
     produce((draft) => {
-      draft.splice(result.index, 0, properties)
+      draft.splice(result.index, 0, project)
     }),
   )
 }

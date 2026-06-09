@@ -79,6 +79,74 @@ describe("getSessionContextMetrics", () => {
     expect(metrics.context?.usage).toBeNull()
   })
 
+  test("handles model metadata without a limit", () => {
+    const messages = [assistant("a1", { input: 40, output: 10, reasoning: 0, read: 0, write: 0 }, 0.1)]
+    const providers = [
+      {
+        id: "openai",
+        name: "OpenAI",
+        models: {
+          "gpt-4.1": {
+            name: "GPT-4.1",
+          },
+        },
+      },
+    ]
+
+    const metrics = getSessionContextMetrics(messages, providers)
+
+    expect(metrics.context?.providerLabel).toBe("OpenAI")
+    expect(metrics.context?.modelLabel).toBe("GPT-4.1")
+    expect(metrics.context?.limit).toBeUndefined()
+    expect(metrics.context?.usage).toBeNull()
+  })
+
+  test("handles assistant tokens without cache details", () => {
+    const messages = [
+      {
+        ...assistant("a1", { input: 40, output: 10, reasoning: 5, read: 0, write: 0 }, 0.1),
+        tokens: {
+          input: 40,
+          output: 10,
+          reasoning: 5,
+        },
+      } as unknown as Message,
+    ]
+
+    const metrics = getSessionContextMetrics(messages, [{ id: "openai", models: {} }])
+
+    expect(metrics.context?.total).toBe(55)
+    expect(metrics.context?.cacheRead).toBe(0)
+    expect(metrics.context?.cacheWrite).toBe(0)
+  })
+
+  test("uses the latest assistant even when token usage is zero", () => {
+    const messages = [
+      assistant("a1", { input: 100, output: 20, reasoning: 0, read: 0, write: 0 }, 0.25),
+      assistant("a2", { input: 0, output: 0, reasoning: 0, read: 0, write: 0 }, 0, "openai", "gpt-5"),
+    ]
+    const providers = [
+      {
+        id: "openai",
+        name: "OpenAI",
+        models: {
+          "gpt-5": {
+            name: "GPT-5",
+            limit: { context: 2000 },
+          },
+        },
+      },
+    ]
+
+    const metrics = getSessionContextMetrics(messages, providers)
+
+    expect(metrics.context?.message.id).toBe("a2")
+    expect(metrics.context?.providerLabel).toBe("OpenAI")
+    expect(metrics.context?.modelLabel).toBe("GPT-5")
+    expect(metrics.context?.total).toBe(0)
+    expect(metrics.context?.usage).toBe(0)
+  })
+
   test("recomputes when message array is mutated in place", () => {
     const messages = [assistant("a1", { input: 10, output: 10, reasoning: 10, read: 10, write: 10 }, 0.25)]
     const providers = [{ id: "openai", models: {} }]

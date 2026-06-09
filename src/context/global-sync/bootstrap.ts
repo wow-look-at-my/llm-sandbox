@@ -16,7 +16,7 @@ import { retry } from "@opencode-ai/core/util/retry"
 import { batch } from "solid-js"
 import { reconcile, type SetStoreFunction, type Store } from "solid-js/store"
 import type { State, VcsCache } from "./types"
-import { cmp, normalizeAgentList, normalizeProviderList } from "./utils"
+import { cmp, normalizeAgentList, normalizeProject, normalizeProviderList } from "./utils"
 import { formatServerError } from "@/utils/server-errors"
 import { QueryClient, queryOptions } from "@tanstack/solid-query"
 import { loadMcpQuery } from "../global-sync"
@@ -96,8 +96,9 @@ export const loadProjectsQuery = (sdk: OpencodeClient) =>
       retry(() =>
         sdk.project.list().then((x) => {
           return (x.data ?? [])
-            .filter((p) => !!p?.id)
-            .filter((p) => !!p.worktree && !p.worktree.includes("opencode-test"))
+            .map(normalizeProject)
+            .filter((p): p is Project => !!p)
+            .filter((p) => !p.worktree.includes("opencode-test"))
             .slice()
             .sort((a, b) => cmp(a.id, b.id))
         }),

@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
-import type { Agent } from "@opencode-ai/sdk/v2/client"
-import { directoryKey, normalizeAgentList } from "./utils"
+import type { Agent, Project } from "@opencode-ai/sdk/v2/client"
+import { directoryKey, normalizeAgentList, normalizeProject } from "./utils"
 
 const agent = (name = "build") =>
   ({
@@ -31,6 +31,52 @@ describe("normalizeAgentList", () => {
   test("drops invalid payloads", () => {
     expect(normalizeAgentList({ name: "AbortError" })).toEqual([])
     expect(normalizeAgentList([{ name: "build" }, agent("docs")])).toEqual([agent("docs")])
+  })
+})
+
+describe("normalizeProject", () => {
+  test("keeps valid projects and strips transient icon URLs", () => {
+    const project = {
+      id: "proj_1",
+      worktree: "/repo/app",
+      sandboxes: ["/repo/app-a"],
+      icon: {
+        url: "https://example.com/icon.png",
+        override: "custom",
+        color: "blue",
+      },
+    } as Project
+
+    expect(normalizeProject(project)).toEqual({
+      id: "proj_1",
+      worktree: "/repo/app",
+      sandboxes: ["/repo/app-a"],
+      icon: {
+        url: undefined,
+        override: undefined,
+        color: "blue",
+      },
+    })
+  })
+
+  test("drops malformed project payloads before string operations", () => {
+    expect(normalizeProject({ id: "proj_1", worktree: { path: "/repo/app" } })).toBeUndefined()
+    expect(normalizeProject({ id: "proj_1", worktree: null })).toBeUndefined()
+    expect(normalizeProject({ id: 1, worktree: "/repo/app" })).toBeUndefined()
+  })
+
+  test("keeps only string sandbox directories", () => {
+    expect(
+      normalizeProject({
+        id: "proj_1",
+        worktree: "/repo/app",
+        sandboxes: ["/repo/app-a", { path: "/repo/app-b" }, null],
+      }),
+    ).toMatchObject({
+      id: "proj_1",
+      worktree: "/repo/app",
+      sandboxes: ["/repo/app-a"],
+    })
   })
 })
 
